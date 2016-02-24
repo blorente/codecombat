@@ -53,10 +53,9 @@ module.exports = class AuthModal extends ModalView
 
   onSignupInstead: (e) ->
     @playSound 'menu-button-click'
-    @mode = 'signup'
-    @previousFormInputs = forms.formToObject @$el
-    @render()
-    _.delay application.router.renderLoginButtons, 500
+    CreateAccountModal = require 'views/core/CreateAccountModal'
+    modal = new CreateAccountModal({ initialValues: forms.formToObject @$('form')     })
+    currentView.openModalView(modal)
 
   onLoginInstead: (e) ->
     @playSound 'menu-button-click'

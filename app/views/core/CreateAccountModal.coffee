@@ -238,5 +238,10 @@ module.exports = class AuthModal extends ModalView
         forms.setErrorToProperty @$el, 'name', "That name is taken! How about #{newName}?", true
 
   onClickSwitchToLoginButton: (e) ->
-    # TODO
+    AuthModal = require 'views/core/AuthModal'
+    modal = new AuthModal({ 
+      mode: 'login'
+      initialValues: forms.formToObject @$('form')
+    })
+    currentView.openModalView(modal)
     
