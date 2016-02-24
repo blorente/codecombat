@@ -72,10 +72,11 @@ module.exports = class AuthModal extends ModalView
     @classCode = attrs.classCode
     delete attrs.classCode
     _.assign attrs, @gplusAttrs if @gplusAttrs
+    _.assign attrs, @facebookAttrs if @facebookAttrs
     res = tv4.validateMultiple attrs, User.schema
     if not res.valid
       return forms.applyErrorsToForm(@$el, res.errors)
-    if not _.any([attrs.password, @gplusAttrs])
+    if not _.any([attrs.password, @gplusAttrs, @facebookAttrs])
       return forms.setErrorToProperty @$el, 'password', 'Required', true
     if not forms.validateEmail(attrs.email)
       return forms.setErrorToProperty @$el, 'email', 'Please enter a valid email address', true
@@ -103,6 +104,10 @@ module.exports = class AuthModal extends ModalView
     if @gplusAttrs
       @newUser.set('_id', me.id)
       options.url = "/db/user?gplusID=#{@gplusAttrs.gplusID}&gplusAccessToken=#{application.gplusHandler.accessToken.access_token}"
+      options.type = 'PUT'
+    if @facebookAttrs
+      @newUser.set('_id', me.id)
+      options.url = "/db/user?facebookID=#{@facebookAttrs.facebookID}&facebookAccessToken=#{application.facebookHandler.authResponse.accessToken}"
       options.type = 'PUT'
     @newUser.save(null, options)
     @newUser.once 'sync', @onUserCreated, @
@@ -132,13 +137,15 @@ module.exports = class AuthModal extends ModalView
 
   onClickGPlusSignupButton: ->
     @clickedGPlusLogin = true
+    # the button has been set up to trigger the log in, so we'll hear back when the user has logged into google
 
   onGPlusHandlerLoggedIntoGoogle: ->
     return unless @clickedGPlusLogin
     application.gplusHandler.loadPerson()
-    @$('#gplus-login-btn .sign-in-blurb').text($.i18n.t('signup.creating')).attr('disabled', true)
+    @$('#gplus-signup-btn').attr('disabled', true).find('.sign-in-blurb').text($.i18n.t('signup.creating'))
 
   onGPlusPersonLoaded: (@gplusAttrs) ->
+    # TODO: Handle GPlus person loading errors
     existingUser = new User()
     existingUser.fetchGPlusUser(@gplusAttrs.gplusID, application.gplusHandler.accessToken.access_token)
     existingUser.once 'sync', @onceExistingGPlusUserSync, @
@@ -149,27 +156,22 @@ module.exports = class AuthModal extends ModalView
     @$('#gplus-account-exists-row').removeClass('hide')
 
   onceExistingGPlusUserError: (user, jqxhr) ->
-    @$('#email-password-row').remove()
     if jqxhr.status is 404
+      @$('#email-password-row').remove()
       @$('#gplus-logged-in-row').toggleClass('hide')
     else
+      @$('#gplus-signup-btn').attr('disabled', false).find('.sign-in-blurb').text($.i18n.t('login.sign_in_with_gplus'))
       errors.showNotyNetworkError(jqxhr)
 
   onClickGPlusLoginButton: ->
-    # TODO: Come up with a better way to login with a gplusID
-    @newUser = new User(@gplusAttrs)
-    @newUser.set('_id', me.id)
-    options = {
-      url: "/db/user?gplusID=#{@gplusAttrs.gplusID}&gplusAccessToken=#{application.gplusHandler.accessToken.access_token}"
-      type: 'PUT'
-    }
-    @newUser.save(null, options)
-    @newUser.once 'sync', -> window.location.reload()
-    @newUser.once 'error', @onceLoginGPlusError, @
-    @$('#login-gplus-btn').text('Logging In').attr('disabled', true)
+    user = new User()
+    user.loginByGPlus(@gplusAttrs.gplusID, application.gplusHandler.accessToken.access_token)
+    user.once 'sync', -> window.location.reload()
+    user.once 'error', @onceLoginGPlusError, @
+    @$('#gplus-login-btn').text($.i18n.t('login.logging_in')).attr('disabled', true)
 
   onceLoginGPlusError: (user, jqxhr) ->
-    @$('#login-gplus-btn').text('Log in now.').attr('disabled', false)
+    @$('#gplus-login-btn').text($.i18n.t('login.logging_in')).attr('disabled', false)
     errors.showNotyNetworkError(jqxhr)
 
     
@@ -185,9 +187,10 @@ module.exports = class AuthModal extends ModalView
   onFacebookHandlerLoggedIntoFacebook: ->
     return unless @clickedFacebookLogin
     application.facebookHandler.loadPerson()
-    @$('#facebook-login-btn .sign-in-blurb').text($.i18n.t('signup.creating')).attr('disabled', true)
+    @$('#facebook-signup-btn').attr('disabled', true).find('.sign-in-blurb').text($.i18n.t('signup.creating'))
     
   onFacebookPersonLoaded: (@facebookAttrs) ->
+    # TODO: Handle Facebook person loading errors
     existingUser = new User()
     existingUser.fetchFacebookUser(@facebookAttrs.facebookID, application.facebookHandler.authResponse.accessToken)
     existingUser.once 'sync', @onceExistingFacebookUserSync, @
@@ -198,28 +201,25 @@ module.exports = class AuthModal extends ModalView
     @$('#facebook-account-exists-row').removeClass('hide')
 
   onceExistingFacebookUserError: (user, jqxhr) ->
-    @$('#email-password-row').remove()
     if jqxhr.status is 404
       @$('#facebook-logged-in-row').toggleClass('hide')
+      @$('#email-password-row').remove()
     else
+      @$('#facebook-signup-btn').attr('disabled', false).find('.sign-in-blurb').text($.i18n.t('login.sign_in_with_facebook'))
       errors.showNotyNetworkError(jqxhr)
 
   onClickFacebookLoginButton: ->
-    @newUser = new User(@facebookAttrs)
-    @newUser.set('_id', me.id)
-    options = {
-      url: "/db/user/#{me.id}?facebookID=#{@facebookAttrs.facebookID}&facebookAccessToken=#{application.facebookHandler.authResponse.accessToken}"
-      type: 'PUT'
-    }
-    @newUser.save(null, options)
-    @newUser.once 'sync', -> window.location.reload()
-    @newUser.once 'error', @onceLoginFacebookError, @
-    @$('#login-facebook-btn').text('Logging In').attr('disabled', true)
+    user = new User()
+    user.loginByFacebook(@facebookAttrs.facebookID, application.facebookHandler.authResponse.accessToken)
+    user.once 'sync', -> window.location.reload()
+    user.once 'error', @onceLoginFacebookError, @
+    @$('#facebook-login-btn').text('Logging In').attr('disabled', true)
 
   onceLoginFacebookError: (user, jqxhr) ->
-    @$('#login-facebook-btn').text('Log in now.').attr('disabled', false)
+    @$('#facebook-login-btn').text('Log in now.').attr('disabled', false)
     errors.showNotyNetworkError(jqxhr)
   
+    
   # Misc
   
   onHidden: ->

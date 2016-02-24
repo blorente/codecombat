@@ -44,7 +44,7 @@ module.exports =
     
   showNotyNetworkError: (jqxhr) ->
     noty({
-      text: jqxhr.responseText or 'Unknown error'
+      text: jqxhr.responseJSON?.message or jqxhr.responseJSON?.errorName or jqxhr.responseText or 'Unknown error'
       layout: 'topCenter'
       type: 'error'
       killer: false,

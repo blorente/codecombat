@@ -18,7 +18,7 @@ module.exports =
     [googleRes, body] = yield request.getAsync(url, {json: true})
     idsMatch = gpID is body.id
     throw new errors.UnprocessableEntity('Invalid G+ Access Token.') unless idsMatch
-    user = yield User.findOne({gplusID: gpID})
+    user = yield dbq.findOne({gplusID: gpID})
     throw new errors.NotFound('No user with that G+ ID') unless user
     res.status(200).send(user.formatEntity(req))
     
@@ -31,10 +31,8 @@ module.exports =
     dbq.select(parse.getProjectFromReq(req))
     url = "https://graph.facebook.com/me?access_token=#{fbAT}"
     [facebookRes, body] = yield request.getAsync(url, {json: true})
-    console.log '...', body, facebookRes.statusCode
     idsMatch = fbID is body.id
     throw new errors.UnprocessableEntity('Invalid Facebook Access Token.') unless idsMatch
-    user = yield User.findOne({facebookID: fbID})
+    user = yield dbq.findOne({facebookID: fbID})
     throw new errors.NotFound('No user with that Facebook ID') unless user
-    console.log 'okay done'
     res.status(200).send(user.formatEntity(req))
